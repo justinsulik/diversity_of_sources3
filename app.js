@@ -1,11 +1,7 @@
 /*jshint esversion: 6 */
 
 /*
-Useful tips:
-- Once you've created a heroku app, make a note of its name here:
-    e.g. shielded-mountain-2347
-- Use 'npm install' to install all modules required below under LOAD MODULES
-- It's not listed in this file, but you also need to use 'npm install mongoose' for the database to work
+https://salty-beyond-47706.herokuapp.com/
 */
 
 
@@ -75,19 +71,20 @@ app.get('/', (req, res, next) => {
     const browser = detect(req.headers['user-agent']);
 
     // save above trial-specific info
-    tasks.save({
-        "worker_id": worker_id,
-        "hit_id": hit_id,
-        "assignment_id": assignment_id,
-        "trial_id": trial_id,
-        "study_name": study_name,
-        "browser": browser,
-    });
+    if(study_name!='test'){
+      tasks.save({
+          "worker_id": worker_id,
+          "hit_id": hit_id,
+          "assignment_id": assignment_id,
+          "trial_id": trial_id,
+          "study_name": study_name,
+          "browser": browser,
+      });
+    }
 
     // Check device not mobile
     let browserOk = true;
     if (browser) {
-      console.log(trial_id, 'Detected browser...', browser);
       if (browser.mobile==true){
         browserOk = false;
       }

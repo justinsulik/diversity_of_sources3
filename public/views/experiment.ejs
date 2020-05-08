@@ -2,12 +2,24 @@
 <html>
     <head>
         <title>Experiment</title>
+        <script language="javascript" src="libraries/p5.min.js"></script>
+        <script language="javascript" src="libraries/p5.dom.min.js"></script>
+        <script language="javascript" src="libraries/d3.min.js"></script>
+        <script language="javascript" src="libraries/lodash.min.js"></script>
         <script language="javascript" src="libraries/jquery-3.4.1.min.js"></script>
+        <script language="javascript" src="libraries/jstat.min.js"></script>
         <script language="javascript" src="libraries/helper.js"></script>
         <script language="javascript" src="jspsych/jspsych.js"></script>
         <!-- make sure you list the jspsych plugins you need below -->
         <script language="javascript" src="jspsych/plugins/jspsych-instructions.js"></script>
         <script language="javascript" src="jspsych/plugins/jspsych-survey-text.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-2afc-p5.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-source-choice-training.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-source-choice.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-survey-likert-customized.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-survey-multi-choice.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-custom-form.js"></script>
+        <script language="javascript" src="jspsych/plugins/jspsych-external-html.js"></script>
         <!-- the following is the styling provided by jspsych -->
         <link href="jspsych/css/jspsych.css" rel="stylesheet" type="text/css"></link>
         <!-- the following is where you can tweak the styling -->
@@ -17,91 +29,742 @@
     </body>
     <script>
 
-    /*
-    Set up: define a few experiment variables
-    */
-
-    // get the data passed along by app.js
+/*
+Set up study variables
+*/
     var input_data = <%- input_data %>
-    var trial_id = input_data.trial_id;
-    console.log('Rendering trial ', trial_id)
-    // Make a completion code. I add a few simple hallmarks that make it easy to spot whether the code is genuine
-    var completionCode = helper.makeCode(3)+'RtR' + helper.makeCode(5) + '4z4';
-    var completionCodeEnd = completionCode + '_' + trial_id;
-    jsPsych.data.addProperties({completionCode: completionCode,
+
+    var trial_id = input_data.trial_id
+    var cmpltnCd = makeCode(3)+'RtR' + makeCode(5) + '4z4'
+    jsPsych.data.addProperties({cmpltnCd: cmpltnCd,
                                 trial_id: trial_id});
 
+    var condition;
+    if(Math.random()<0.5){
+      condition = 'trust'
+    } else {
+      condition = 'fashion'
+    }
+
+    var conditional_text = {
+      'trust': {
+        '2afc_preamble': 'Which group\'s opinions would you trust more?',
+        '2afc_instr': ['In the second task, imagine that you are working for your state government. '+
+        'Your job is to travel around to various small towns in your state and interview people on a range of topics, '+
+        'including their beliefs about how the state government is performing. '+
+        'The people in these particular towns mostly get their information about such matters from local TV news channels.<br><br>'+
+        'You wouldn\'t have enough time to interview everybody, so you\'ll have to be selective '+
+        'and interview just 5 people per town, '+
+        'but you want to make sure you get an accurate idea of what the town in general believes.<br><br>'+
+        'For each trial, we will show you two groups of five townspeople, along with their preferred news channels. '+
+        'Your task is to decide which of these two groups you would trust more '+
+        'to give you an accurate reflection of the town\'s attitudes and beliefs, in general.',
+        'We are using fictitious town names, and are using cartoons to represent the townspeople and the TV news channels. '+
+        'Don\'t worry too much about trying to differentiate people and channels based on subtle differences. '+
+        'If they look even slightly different, then they are different! This will be most evident in the colors we are using.<br><br>'+
+        'First, you will do a practice trial.']
+        },
+      'fashion': {
+        '2afc_preamble': 'Which group would you invite to a fashion photoshoot?',
+                  '2afc_instr': ['In the second task, imagine that you are working for a fashion and lifestyle magazine. '+
+                  'This month, your job is to travel around to various small towns in your state and take pictures of the regular townspeople '+
+                  'in their living rooms, as part of an "everyday fashions" feature.<br><br>'+
+                  'You wouldn\'t have enough time to interview everybody, so you\'ll have to be selective '+
+                  'and interview just 5 people per town, '+
+                  'but you want to make sure you get the best pictures for the magazine, based on who you think is most stylish.<br><br>'+
+                  'For each trial, we will show you two groups of five townspeople. '+
+                  'Your task is to decide which of these two groups you would invite to a photo shoot.',
+                  'We are using fictitious town names, and are using cartoons to represent the townspeople.<br><br>'+
+                  'First, you will do a practice trial.']
+        }
+    }
+
+    var data = {};
     var timeline = [];
     var experiment_start_time;
-    var data_not_processed = true;
-    // The following needs to match the relevant route in app.js
+    var save_attempts = 0;
+    var saveTimeout = 1000;
+    var cmpltnCdEnd;
     var dataUrl = '/data?trial_id=' + trial_id;
 
+/****
 
-    /*
-    Define your trials
-    See tutorial at https://www.jspsych.org/tutorials/rt-task/
-    */
+PART 1
 
-    // Consent form
+*****/
+
+    // specify RGB colors for TV backgrounds
+    var tv_backgrounds =  {
+      // 5 contrasts
+      5: [[[240, 25, 75], [245, 150, 60], [60, 180, 75], [0, 130, 200], [145, 30, 180]],
+      [[215, 0, 30],[255, 225, 25],[210, 245, 60],[70, 240, 240],[245, 70, 245]],
+      [[255, 170, 150],[250, 250, 170],[170, 250, 170],[170, 170, 250],[250, 170, 240]]],
+      // 4 contrasts
+      4: [[[255, 225, 25],[210, 245, 60],[70, 240, 240],[240, 50, 230]],
+      [[245, 130, 48],[60, 180, 75],[0, 130, 200],[145, 30, 180]]],
+      // 3 contrasts
+      3: [[[150, 0, 0],[0, 150, 0],[0, 0, 150]]]
+    }
+    var tv_background_counter = {5: 0, 4: 0, 3: 0};
+    var practice_backgrounds = [[255, 170, 150],[170, 250, 170],[170, 170, 250],[250, 170, 240]];
+
+    var attn_checks = {
+      0: {
+        tv_background: [[247, 171, 40], [41, 59, 255]],
+        preamble: 'Paying attention? Please choose the LEFT side.',
+        correct: '0'
+      },
+      1: {
+        tv_background: [[41, 59, 255], [247, 171, 40]],
+        preamble: 'Paying attention? Please choose the RIGHT side.',
+        correct: '1'
+      }
+    }
+
+    // colors for skin/shirts
+    var skin_colors = [
+      [255, 229, 200],
+      [255, 218, 190],
+      [255, 206, 180],
+      [240, 184, 160],
+      [225, 172, 150],
+      [210, 161, 140],
+      [180, 138, 120],
+      [150, 115, 100],
+      [120, 92, 80],
+      [90, 69, 60],
+    ]
+    // #https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+    var shirt_colors = [
+      [230, 25, 75],
+      [60, 180, 75],
+      [225, 225, 25],
+      [67, 99, 216],
+      [245, 130, 49],
+      [145, 30, 180],
+      [70, 240, 240],
+      [240, 50, 230],
+      [188, 246, 12],
+      [250, 190, 190],
+      [0, 128, 128],
+      [230,190, 255],
+      [154, 99, 36],
+      [255, 250, 200],
+      [128, 0, 0],
+      [170, 255, 195],
+      [128, 128, 0],
+      [255, 216, 177],
+      [0, 0, 117],
+      [128, 128, 128],
+      [255, 255, 255],
+      [0, 0, 0]];
+
+      // town names
+      var town_names = [
+        'Franklin',
+        'Chester',
+        'Greenville',
+        'Springfield',
+        'Fairfield',
+        'Riverside',
+        'Kingston',
+        'Marion',
+        'Georgetown',
+        'Middleton',
+        'Centerville'];
+
+      var town_names_shuffled = jsPsych.randomization.shuffle(town_names);
+      var chosen_town_names = []; // keep track of which towns visited for part 2;
+
+  /*
+  Sources trial data
+  */
+    // generate tv channel IDs
+    var tv_factors = {
+      gender: ['male', 'female'],
+      channel: _.range(10)};
+    var tv_channels_all = _.map(jsPsych.randomization.factorial(tv_factors, 1), function(obj){
+      return obj.gender+obj.channel
+    });
+
+    // contrasts for each trial, grouped by difference in number of channels
+    var contrasts = {
+      2: [[5, 3], [4, 2], [3, 1]],
+      3: [[5, 2], [4, 1]],
+      4: [[5, 1]]
+    };
+
+    // Set batch order (so contrasts can be presented in increasing difficulty)
+    var batch_order = [2, 3, 4];
+
+    // Set up trial timeline in line with above batch order
+    var contrasts_timeline = [];
+    batch_order.forEach(function(contrast, j){
+      var trials = contrasts[contrast]
+      // shuffle trials within each batch
+      var trials_shuffled = jsPsych.randomization.shuffle(trials);
+      trials_shuffled.forEach(function(trial, i){
+        // of the two choices, find the largest number
+        var max_channels = _.max(trial);
+        // sample that many channels and background colors
+        var channels_sample = jsPsych.randomization.sampleWithoutReplacement(tv_channels_all, max_channels);
+        // use tv_background_counter to find the next unused set of background colors
+        var tv_backgrounds_index = tv_background_counter[max_channels];
+        var tv_background = tv_backgrounds[max_channels][tv_backgrounds_index];
+        tv_background_counter[max_channels] += 1;
+        contrasts_timeline.push({
+          contrasts: trial,
+          tv_background: tv_background,
+          tv_channels: channels_sample,
+          town_name: town_names_shuffled[contrasts_timeline.length+1],
+          preamble: conditional_text[condition]['2afc_preamble']
+
+        })
+        chosen_town_names.push(town_names_shuffled[contrasts_timeline.length+1])
+      })
+      // after each of the first two batches, add an attention check
+      if(j<2){
+        contrasts_timeline.push({
+          contrasts: [1, 2],
+          tv_background: attn_checks[j].tv_background,
+          tv_channels: jsPsych.randomization.sampleWithoutReplacement(tv_channels_all, 2),
+          preamble: attn_checks[j].preamble,
+          data: {
+            attn_check: true,
+            correct_answer: attn_checks[j].correct
+          }
+        })
+      }
+    })
+
+
+  /*
+  Define trials
+  */
+    // consent
 
     var consent = {
       type: 'external-html',
       url: '../views/consent.html',
       check_fn: function(){
-        // start the timer once they've clicked "consent"
         experiment_start_time = Date.now();
         return true;
       },
       cont_btn: 'consent'
     }
 
-    // instructions
+    // english instructions
 
-    var instructions = {
+    var english_instructions = {
       type: 'instructions',
-      pages: ['Hello, welcome, blah blah blah.'],
+      pages: ['In this study, you will be doing three main tasks. In the first task, you\'ll be rating sentences according to whether they are good English or not.<br><br>' +
+      'For each sentence, just click "yes" if you think it is good English and "no" if you think it is not.'],
       show_clickable_nav: true,
     }
 
-    // example text entry
+    var english_options = ['no', 'yes'];
+    var questions_eng = [{name: 0, prompt: "Athletes often need to warm up.", options: english_options, horizontal: true, required: true},
+      {name: 1, prompt: "I just saw a moose running down the road!", options: english_options, horizontal: true, required: true},
+      {name: 2, prompt: "John ill felt and went doctor.", options: english_options, horizontal: true, required: true},
+      {name: 3, prompt: "Could you the books put in that boxes?", options: english_options, horizontal: true, required: true},
+      {name: 4, prompt: "I am forget do my homeworks.", options: english_options, horizontal: true, required: true},
+      {name: 5, prompt: "She think English is more easier to learn.", options: english_options, horizontal: true, required: true},
+      {name: 6, prompt: "Tommorow will be thatier than today.", options: english_options, horizontal: true, required: true},
+      {name: 7, prompt: "The building is very murnley.", options: english_options, horizontal: true, required: true},
+      {name: 8, prompt: "Where is the pen that I gave it to you yesterday?", options: english_options, horizontal: true, required: true},
+      {name: 9, prompt: "He was pulled over by the police for driving 120 miles per hour.", options: english_options, horizontal: true, required: true},
+    ]
+    questions_eng_shuffled = jsPsych.randomization.repeat(questions_eng, 1);
 
-    var demo = {
-      type: 'survey-text',
-      questions: [
-        {name: 'demo-1', prompt: 'What\'s the weather like?'}
-      ],
-      preamble: 'Please answer the following in at least 4 words?',
+    var english = {
+      type: 'survey-multi-choice',
+      questions: questions_eng_shuffled,
+      preamble: 'Are the following sentences good English ("yes") or not ("no")?',
+      data: {block: 'english'}
     };
 
-    /*
-    Add trials to the timeline
-    */
+    // sources instructions
 
-    timeline.push(instructions);
-    timeline.push(demo);
+    var sources_instructions = {
+      type: 'instructions',
+      pages: conditional_text[condition]['2afc_instr'],
+      show_clickable_nav: true
+    }
 
-    /*
-    Have jsPsych display the experiment timeline
-    */
-    
+    // sources practice trial
+    var sources_practice = {
+      type: '2afc-p5',
+      contrasts: [4, 3],
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 10),
+      tv_background: practice_backgrounds,
+      tv_channels: jsPsych.randomization.sampleWithoutReplacement(tv_channels_all, 4),
+      town_name: town_names_shuffled[0],
+      preamble: conditional_text[condition]['2afc_preamble'],
+      data: {practice: true}
+    };
+
+    var sources_instructions2 = {
+      type: 'instructions',
+      pages: ['Some of the trials will be <b>attention checks</b>, where we will ask you to choose a specific group (e.g. we will say "choose the LEFT group" or "choose the RIGHT group"), '+
+      'to show that you are reading carefully. '+
+      'If you fail more than one attention check, we will not be able to use your data.',
+      'Next you will do the trials. There will be 8 of them.'],
+      show_clickable_nav: true
+    }
+
+    // main trials
+
+    var sources_trial = {
+      type: '2afc-p5',
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 10),
+      data: {practice: false},
+      timeline: contrasts_timeline,
+    }
+
+    // feedback
+
+    var importance_labels = ['Not at all important',
+                             'Slightly important',
+                             'Moderately important',
+                             'Quite important',
+                             'Extremely important']
+
+    var feedback_questions = [
+     {name: 'appearance',
+      prompt: '<b>Their appearance (e.g., hair or clothes)</b>',
+      required: true,
+      labels: importance_labels},
+     {name: 'demo',
+      prompt: '<b>Their demographics (e.g., gender or ethnicity)</b>',
+      required: true,
+      labels: importance_labels},
+     {name: 'sources',
+      prompt: '<b>Their sources of information (e.g., TV channel)</b>',
+      required: true,
+      labels: importance_labels}]
+
+    var feedback_questions_shuffled = jsPsych.randomization.shuffle(feedback_questions);
+
+    var feedback_likert = {
+      type: 'survey-likert',
+      questions: feedback_questions_shuffled,
+      preamble: 'How important do you think each factor is for deciding which group to interview?'
+    }
+
+/****
+
+PART 2
+
+*****/
+
+  // set up condition
+
+  var social_info_condition;
+  var conditional_instructions;
+  var social_info_condition = 'intentional';
+  var conditional_instructions = "Click on each person's <b>remote control</b>, and they will turn on their most trusted local news station.";
+
+  var estimation_instructions1 = {
+    type: 'instructions',
+    pages: ['For the next task, you will make some decisions.<br><br>'+
+      'The first main decision you will make is whether you think something is <b>morally ok</b>.<br><br>'+
+      'We are only interested in what you think <b>generally</b>, '+
+      'so don\'t worry about thinking up special cases where maybe a rule could be broken. '+
+      'For instance, you might think it\'s generally bad to kill people, '+
+      'regardless of whether it might be ok in an unlikely situation where you could travel back in time to kill Hitler.<br><br>',
+      'We are interested in whether it\'s morally ok for <b>people in general</b>, not in whether <b>you</b> do it yourself. '+
+      'For instance, even if you don\'t drink alcohol, you might still think it\'s morally ok for other people to do so, in which case you\'d rate this as acceptable.<br><br>'+
+      'For each decision, you\'ll also rate how confident you are in your answer. For instance, you might think something is probably morally ok, but be quite unsure about it.',
+      'Every time you have to make a <b>moral</b> judgment, we will indicate it using these scales:<br><img src="img/icons/moral.png" style="width:200px"></img>'
+    ],
+    show_clickable_nav: true
+  }
+
+  var estimation_practice1 = {
+    type: 'source-choice-training',
+    rating_type: 'morality',
+    main_instructions: 'For example, how acceptable do you think <b>spanking children</b> is? If you mouse over the scale below, it will reflect different ratings from "morally bad" to "morally good". <b>Only click once you have made your decision.</b>',
+    secondary_instructions: 'How confident are you about your decision? Again, mousing over the scale will reflect different ratings. Clicking on the scale will make your decision.',
+    data: {scenario: 'spanking'}
+  }
+
+  var estimation_practice2 = {
+    type: 'source-choice-training',
+    rating_type: 'morality',
+    cutoffs: {
+      initial: {upper: 0.2, message: "You should think that genocide is morally bad."},
+      confidence: {lower: 0.8, message: "You should be quite sure that genocide is morally bad."},
+    },
+    main_instructions: 'Another example, how acceptable do you think <b>genocide</b> is? Mouse over the scale, and click when you\'ve made your decision.',
+    secondary_instructions: 'How confident are you about your decision?',
+    data: {scenario: 'genocide'},
+  }
+
+  var estimation_instructions2 = {
+    type: 'instructions',
+    pages: ['The other main decision you will make is how <b>likely</b> something is. '+
+    'For example, there is a 50% chance of a fair coin coming up heads.<br><br>'+
+    'Specifically, here you will be deciding the likelihood of <b>election</b> results.',
+    'We are interested in what you think the <b>election outcome</b> will be, not in how <b>you</b> would vote personally.<br><br>'+
+    'For example, you might think that president Trump is going to win re-election, even if you don\'t like him yourself (or the reverse!).<br><br>'+
+    'Essentially, you are trying to predict the election outcome.<br><br>'+
+    'Once more, we will ask you for your confidence about your decision. For instance, you might think that someone is likely to win, but be quite unsure about it.',
+    'Every time you have to make a judgment about the <b>likelihood</b> of an election outcome, we will indicate it using this ballot box:<br><img src="img/icons/vote.png" style="width:200px"></img>'
+    ],
+    show_clickable_nav: true,
+  }
+
+  var estimation_practice3 = {
+    type: 'source-choice-training',
+    rating_type: 'likelihood',
+    main_instructions: 'For example, how likely do you think it is that a that a Democrat would win as governor of your state in the next election? If you mouse over the scale below, it will reflect different ratings from "Very unlikely" to "Very likely". <b>Only click once you have made your decision.</b>',
+    secondary_instructions: 'How confident are you about your decision? Again, mousing over the scale will reflect different ratings. Clicking on the scale will make your decision.',
+    data: {scenario: 'democrat'}
+  }
+
+  var estimation_practice4 = {
+    type: 'source-choice-training',
+    rating_type: 'likelihood',
+    cutoffs: {
+      initial: {upper: 0.2, message: "You should think that it's very unlikely that Ronald McDonald will be the next president."},
+      confidence: {lower: 0.8, message: "You should be quite sure that Ronald McDonald is unlikely to be president."},
+    },
+    main_instructions: 'Another example, how likely do you think it is that Ronald McDonald will be elected president of the USA? Mouse over the scale, and click when you\'ve made your decision.',
+    secondary_instructions: 'How confident are you about your decision?',
+    data: {scenario: 'ronald'}
+  }
+
+  var final_instructions = {
+    type: 'instructions',
+    pages: ['<img src="img/soc_info.png" style="height:400px; float: left"></img>'+
+    'Remember the townspeople we visited earlier? '+
+    'We are going to revisit some of those towns to learn more about the townspeople and their beliefs.<br><br>'+
+    '<b>Note:</b> these are not the exact same people you chose earlier. We have chosen some groups of townspeople for you.<br><br>'+
+    'After you have given your opinion about a moral matter or an election outcome, '+
+    'we are going to show you the townspeople\'s beliefs, using the same judgment scale that you used<br><br>.'+
+    'For example, the person with the highest estimate is the guy at the top with the orange shirt, '+
+    'and the one with the lowest estimate is the one in the middle with the red shirt and moustache.',
+    'You can assume that each sample of people is typical of the area. '+
+    'You can also assume that they are informed about the issues - they have learned about them from local TV stations.',
+    'In each case, we will ask you to make an estimate, and then show you what the locals think. Finally, you will be able to update your estimate.'
+    ],
+    show_clickable_nav: true
+  }
+
+  // set up agents/tv backgrounds
+
+  var trial_order = jsPsych.randomization.shuffle(_.range(3));
+
+  // specify RGB colors for TV backgrounds (one set for each town)
+  var tv_backgrounds_beliefs =  {
+    0: [[240, 25, 75], [245, 150, 60], [60, 180, 75], [0, 130, 200], [145, 30, 180]],
+    1: [[215, 0, 30],[255, 225, 25],[210, 245, 60],[70, 240, 240],[245, 70, 245]],
+    2: [[255, 170, 150],[250, 250, 170],[170, 250, 170],[170, 170, 250],[250, 170, 240]]
+  }
+
+  var channels_beliefs = {0: [], 1: [], 2: []}
+  jsPsych.randomization.sampleWithoutReplacement(tv_channels_all, 15).forEach(function(d,i){
+    var town_id = Math.floor(i/5)
+    channels_beliefs[town_id].push(d)
+  })
+
+  var landscapes = ['img/landscape/scene1.png','img/landscape/scene2.png','img/landscape/scene3.png'];
+  var landscapes_shuffled = jsPsych.randomization.shuffle(landscapes);
+
+  // set up scenarios
+
+  var mayor_instructions_left = {
+    scenario: "Bob Smith is one of two candidates running for mayor of "+chosen_town_names[0]+". His platform involves increasing the town's education budget, building more bicycle paths, and instituting equal pay.",
+    priorEstimate: 'How likely do you think Bob Smith is to win? Rate your belief on the scale below (click scale to confirm).',
+    tvStart: "In "+chosen_town_names[0]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvsOn: "The people of "+chosen_town_names[0]+" have each decided how likely they think Bob Smith is to win. Click 'next' to see their beliefs about his chances.",
+    socInfoCheck: 'Click on the <b>person</b> that thinks he has the highest chance.',
+    posteriorEstimate: "Have a look at people's opinions. What do you think Bob Smith's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
+  }
+
+  var mayor_instructions_centrist = {
+    scenario: "Tod Brown is one of two candidates running for mayor of "+chosen_town_names[1]+". His platform involves increasing jobs by improving roads and building houses.",
+    priorEstimate: 'How likely do you think Tod Brown is to win? Rate your belief on the scale below (click scale to confirm).',
+    tvStart: "In "+chosen_town_names[1]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvsOn: "The people of "+chosen_town_names[1]+" have each decided how likely they think Tod Brown is to win. Click 'next' to see their beliefs about his chances.",
+    socInfoCheck: 'Click on the <b>person</b> that thinks he has the highest chance.',
+    posteriorEstimate: "Have a look at people's opinions. What do you think Tod Brown's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
+  }
+
+  var mayor_instructions_right = {
+    scenario: "Linda Johnson is one of two candidates running for mayor of "+chosen_town_names[2]+". Her platform involves reducing property taxes, hiring more police officers, and clearing a local slum.",
+    priorEstimate: 'How likely do you think Linda Jones is to win? Rate your belief on the scale below (click scale to confirm).',
+    tvStart: "In "+chosen_town_names[2]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvsOn: "The people of "+chosen_town_names[2]+" have each decided how likely they think Linda Jones is to win. Click 'next' to see their beliefs about her chances.",
+    socInfoCheck: 'Click on the <b>person</b> that thinks she has the highest chance.',
+    posteriorEstimate: "Have a look at people's opinions. What do you think Linda Jones's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
+  }
+
+  // ensure that the same
+
+  var mayor_settings = [
+    {instructions: mayor_instructions_left,
+      agreement: 'disagree',
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[0]],
+      tv_channels: channels_beliefs[trial_order[0]],
+      town_name: chosen_town_names[trial_order[0]],
+      data: {trial_no: 3}},
+    {instructions: mayor_instructions_centrist,
+      agreement: 'agree',
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[1]],
+      tv_channels: channels_beliefs[trial_order[1]],
+      town_name: chosen_town_names[trial_order[1]],
+      data: {trial_no: 4}},
+    {instructions: mayor_instructions_right,
+      agreement: 'disagree',
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[2]],
+      tv_channels: channels_beliefs[trial_order[2]],
+      town_name: chosen_town_names[trial_order[2]],
+      data: {trial_no: 5}}
+  ]
+
+  // moral dillema
+
+  var moral_instructions_weed = {
+    scenario: "The people of Greenville have been thinking about whether cannabis should be decriminalized.",
+    priorEstimate: 'In general, how do you view <b>decriminalization of cannabis</b>? Rate the acceptability on the scale below (click scale to confirm).',
+    tvStart: "In Greenville, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
+    tvsOn: "The people of Greenville have each decided how they feel about recreational cannabis use. Click 'next' to see their beliefs about this issue.",
+    socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
+    posteriorEstimate: "Have a look at people's opinions. How acceptable do you think decriminalization of cannabis use is? Rate acceptability on the scale below (click scale to confirm)."
+  }
+
+  var moral_instructions_guns = {
+    scenario: "The people of Kingston have been thinking about whether gun licences should require tougher background checks.",
+    priorEstimate: 'In general, how do you view <b>tougher background checks on gun licences</b>? Rate the acceptability on the scale below (click scale to confirm).',
+    tvStart: "In Kingston, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
+    tvsOn: "The people of Kingston have each decided how they feel about tougher background checks on gun licences. Click 'next' to see their beliefs about this issue.",
+    socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
+    posteriorEstimate: "Have a look at people's opinions. How acceptable do you think tougher background checks on gun licences is? Rate the acceptability on the scale below (click scale to confirm)."
+  }
+
+  var moral_instructions_immigration = {
+    scenario: "The people of Fairfield have been thinking about whether immigration to the USA should be reduced.",
+    priorEstimate: 'In general, how do you view <b>stricter immigration policies</b>? Rate the acceptability on the scale below (click scale to confirm).',
+    tvStart: "In Fairfield, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
+    tvsOn: "The people of Fairfield have each decided how they feel about stricker immigration policies. Click 'next' to see their beliefs about this issue.",
+    socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
+    posteriorEstimate: "Have a look at people's opinions. How acceptable do you think stricter immigration policies are? Rate the acceptability on the scale below (click scale to confirm)."
+  }
+
+  var moral_trials_instructions = jsPsych.randomization.shuffle([moral_instructions_weed, moral_instructions_guns, moral_instructions_immigration]);
+  var moral_agreements = jsPsych.randomization.shuffle(['agree', 'agree', 'disagree'])
+  var moral_diversity = jsPsych.randomization.shuffle(['low', 'medium', 'high'])
+
+  var moral_settings = [
+    {instructions: moral_instructions_weed,
+      agreement: moral_agreements[0],
+      labels: ['Decriminalization\nbad', 'Decriminalization\ngood'],
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[0]],
+      tv_channels: channels_beliefs[trial_order[0]],
+      town_name: chosen_town_names[trial_order[0]],
+      data: {trial_no: 0}},
+    {instructions: moral_instructions_guns,
+      labels: ['Tougher checks\nbad', 'Tougher checks\ngood'],
+      agreement: moral_agreements[1],
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[1]],
+      tv_channels: channels_beliefs[trial_order[1]],
+      town_name: chosen_town_names[trial_order[1]],
+      data: {trial_no: 1}},
+    {instructions: moral_instructions_immigration,
+      agreement: moral_agreements[2],
+      labels: ['Stricter policies\nbad', 'Stricter policies\ngood'],
+      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
+      tv_background: tv_backgrounds_beliefs[trial_order[2]],
+      tv_channels: channels_beliefs[trial_order[2]],
+      town_name: chosen_town_names[trial_order[2]],
+      data: {trial_no: 2}}
+  ]
+
+    // bio
+
+    var demographics = {
+          type: 'custom-form',
+          submit: 'Submit',
+          preamble: 'Please tell us about yourself',
+          select_start: 'Select an option',
+          highlight: 'group',
+          questions: [
+            {type: 'text',
+            prompt: 'Age: ',
+            placeholder: '(number only)',
+            numeric: true,
+            number_valid: '(number only)',
+            inline: true,
+            id: 'age',
+            group: 0},
+            {type: 'select',
+            prompt: "Gender: ",
+            id: 'gender',
+            inline: true,
+            options: ['Man', 'Woman', 'Nonbinary', 'Prefer not to say'],
+            values: ['man', 'woman', 'nb', 'none'],
+            group: 1},
+            {type: 'select',
+            prompt: 'Highest completed education: ',
+            id: 'education',
+            options: ['Some high school','High school diploma','2-year degree or diploma','Bachelors degree or equivalent','Masters degree or equivalent','Doctorate or equivalent','Prefer not to say'],
+            values: [0, 1, 2, 3, 4, 5, 'NA'],
+            group: 2},
+            {type: 'slider',
+            id: 'ideology',
+            prompt: 'How do you identify, politically?',
+            labels: ['Very liberal', 'Very conservative'],
+            group: 2},
+            {type: 'checkbox',
+            id: 'ideology-optout',
+            optout_for: 'ideology',
+            columns: 1,
+            options: ['Does not apply to my political views', 'Prefer not to say'],
+            values: ['NA', 'None'],
+            group: 2}
+              ]
+            };
+
+    // fill timeline
+
+    // timeline.push(consent);
+    // timeline.push(english_instructions);
+    // timeline.push(english);
+    // timeline.push(sources_instructions);
+    // timeline.push(sources_practice);
+    // timeline.push(sources_instructions2);
+    // timeline.push(sources_trial);
+    // timeline.push(feedback_likert);
+    // timeline.push(estimation_instructions1)
+    // timeline.push(estimation_practice1)
+    // timeline.push(estimation_practice2)
+    //
+    // timeline.push(estimation_instructions2)
+    // timeline.push(estimation_practice3)
+    // timeline.push(estimation_practice4)
+    //
+    // timeline.push(final_instructions)
+    var ordinals = {1: 'First', 2: 'Second', 3: 'Finally'};
+
+    trial_order.forEach(function(d, i){
+
+      var ordinal = ordinals[i+1];
+      var intro = {
+        type: 'instructions',
+        pages: [ordinal + ', we visit the town of '+chosen_town_names[trial_order[d]]+'.<br><br><img src="'+landscapes_shuffled[d]+'"></img>'],
+        show_clickable_nav: true,
+      }
+
+      var moral = {
+        type: "source-choice",
+        choice_type: social_info_condition,
+        timeline: [moral_settings[d]],
+        rating_type: 'morality',
+        on_finish: function(data){
+          console.log(data)
+        }
+      };
+
+      var mayor = {
+        type: "source-choice",
+        choice_type: social_info_condition,
+        timeline: [mayor_settings[d]],
+        rating_type: 'likelihood',
+      };
+
+      timeline.push(intro)
+      // timeline.push(moral)
+      timeline.push(mayor)
+
+    })
+    timeline.push(demographics);
+
     jsPsych.init({
-        // uncomment if you need to preload anything that isn't a stim in an existing jspsych plugin
-        // preload_images: [],
         default_iti: 500,
         show_progress_bar: true,
         exclusions: {
           min_width: 800,
           min_height: 500
         },
-        experiment_width: 800,
         timeline: timeline,
         on_finish: function(){
-          console.log('Experiment completed...')
-          var data = helper.prepareData(experiment_start_time);
-          helper.save(data, dataUrl);
+          save();
         }
     });
+
+    function save(){
+      if(save_attempts==0){
+        var experiment_end_time = Date.now();
+        var duration = experiment_end_time - experiment_start_time;
+        var interactionData = jsPsych.data.getInteractionData().json();
+        jsPsych.data.get().addToLast({duration: duration,
+                                      interactionData: interactionData,
+                                    });
+        data.responses = jsPsych.data.get().json();
+        data.trial_id = trial_id;
+        data.cmpltnCd = cmpltnCd;
+        cmpltnCdEnd = cmpltnCd + trial_id;
+        console.log('    About to post survey output data...', data);
+      }
+      dataJSON = JSON.stringify(data);
+
+      $.ajax({
+         type: 'POST',
+         url: dataUrl,
+         data: dataJSON,
+         contentType: "application/json",
+         timeout: 3000,
+         success: function(request, status, error){
+           finish(cmpltnCdEnd+'_'+save_attempts)
+         },
+         error: function(request, status){
+           $('#jspsych-content').html("Please wait a few seconds while we save your responses...")
+           console.log('    Error posting data...', request, status)
+           if ( save_attempts < 5) {
+             save_attempts += 1;
+             saveTimeout += 500;
+             console.log("Trying again, attempt ", save_attempts)
+             setTimeout(function () {
+                save();
+                }, saveTimeout)
+           } else {
+             finish(cmpltnCdEnd+'_'+save_attempts);
+           }
+         }
+       });
+    }
+
+    function finish(cmpltnCd){
+      if(trial_id=='test'){
+        window.location.href = '/finish_demo'
+      } else {
+        window.location.href = "/finish?token="+cmpltnCd;
+      }
+
+    }
+
+    function makeCode(len){
+      var text = "";
+      var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy0123456789";
+      for( var i=0; i < len; i++ ){
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+      return text;
+    };
 
     </script>
 </html>
