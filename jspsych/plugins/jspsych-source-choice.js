@@ -244,12 +244,12 @@ jsPsych.plugins['source-choice'] = (function(){
     function displayId(){
       // depending on the trial condition (diversity = high/med/low) create a dictionary with agent# as key and tv station ID as val
       var displayDict = {};
-      var keys = _.range(0,trial.agent_ids.length);
+      var keys = _.range(0,trial.agents);
       var keys_shuffled = jsPsych.randomization.shuffle(keys);
       var channelCount = {'low': 2, 'medium': 3, 'high': 5};
       var channels = _.range(0, channelCount[trial.diversity]);
       var duplicate = channels[channelCount[trial.diversity]-1];
-      for(i = channelCount[trial.diversity]; i < trial.agent_ids.length; i++){
+      for(i = channelCount[trial.diversity]; i < trial.agents; i++){
         channels.push(duplicate);
       }
       var channels_shuffled = jsPsych.randomization.shuffle(channels);
@@ -438,7 +438,7 @@ jsPsych.plugins['source-choice'] = (function(){
       var remotes = [];
 
 
-      var agentCount = trial.agent_ids.length;
+      var agentCount = trial.agents;
       var agentParts = {m: {hair: {}}, f: {hair: {}}};
       var sketchWidth = 900;
       var sketchHeight = 600;
