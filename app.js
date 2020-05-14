@@ -25,7 +25,7 @@ INSTANTIATE THE APP
 - process.env.PORT will retrieve the relevant port # from Heroku if deployed,
   otherwise use port 5000 locally, which you can visit by entering 'localhost:5000' in a browser IF the app is running
 */
-const study_name = 'phase1';
+const study_name = 'study3';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
