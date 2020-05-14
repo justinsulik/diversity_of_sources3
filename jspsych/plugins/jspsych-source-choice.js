@@ -19,6 +19,12 @@ jsPsych.plugins['source-choice'] = (function(){
         default: 'intentional',
         description: 'If "random", appears to be random selection; if "intentional", appears to be intentional selection'
       },
+      diversity: {
+        type: jsPsych.plugins.parameterType.STRING,
+        pretty_name: 'Diversity',
+        default: 'low',
+        description: 'Values low med high'
+      },
       rating_type: {
         type: jsPsych.plugins.parameterType.STRING,
         pretty_name: 'Rating type',
@@ -29,6 +35,11 @@ jsPsych.plugins['source-choice'] = (function(){
         type: jsPsych.plugins.parameterType.INT,
         default: 5,
         description: 'number of agents in each choice'
+      },
+      number_males: {
+        type: jsPsych.plugins.parameterType.INT,
+        default: null,
+        description: 'number of male agents'
       },
       skin_colors: {
         type: jsPsych.plugins.parameterType.COMPLEX,
@@ -69,6 +80,11 @@ jsPsych.plugins['source-choice'] = (function(){
         type: jsPsych.plugins.parameterType.STRING,
         array: true,
         description: 'Optional labels as anchors for the slider'
+      },
+      soc_info_range: {
+        type: jsPsych.plugins.parameterType.STRING,
+        default: 'wide',
+        description: 'How wide the distribution of social information can be'
       }
     }
   };
@@ -77,10 +93,11 @@ jsPsych.plugins['source-choice'] = (function(){
 
     // set up basic html for trial
 
-    console.log(trial)
+    console.log(trial);
+    console.log(trial.town_name, trial.agreement, trial.diversity)
 
     var css = '<style id="jspsych-source-choice-css">'+
-    '#mainSketchContainer {border: 1px solid black; position: relative;}'+
+    '#mainSketchContainer {position: relative;}'+
     '.instructions {position: absolute; left: 500px; width: 360px; text-align: left; font-size: 15px}'+
     '#instructions {margin-top: 30px;}'+
     '#instructions2 {margin-top: 260px;}'+
@@ -200,7 +217,7 @@ jsPsych.plugins['source-choice'] = (function(){
           return "How confident are you about your decision? Rate your confidence on the scale below (click scale to confirm).";
         },
         onClick: function(){
-          console.log(trial_data)
+          console.log(trial_data);
           if(trial_data.posterior_confidence){
             endTrial();
           }
@@ -246,7 +263,7 @@ jsPsych.plugins['source-choice'] = (function(){
       var displayDict = {};
       var keys = _.range(0,trial.agents);
       var keys_shuffled = jsPsych.randomization.shuffle(keys);
-      var channelCount = {'low': 2, 'medium': 3, 'high': 5};
+      var channelCount = {'low': 2, 'medium': 3, 'high': 4};
       var channels = _.range(0, channelCount[trial.diversity]);
       var duplicate = channels[channelCount[trial.diversity]-1];
       for(i = channelCount[trial.diversity]; i < trial.agents; i++){
@@ -269,7 +286,7 @@ jsPsych.plugins['source-choice'] = (function(){
     function checkDisplays(){
       var on = 0;
        displays.forEach(function(d,i){
-        if(d.stable){
+        if(d.on){
           on+=1;
         }
       });
@@ -300,7 +317,6 @@ jsPsych.plugins['source-choice'] = (function(){
           $('#instructions').addClass('hidden');
           break;
         default:
-          console.log('here', trial_state)
           $('#instructions').html(stateGraph[trial_state].instructions());
       }
     }
@@ -328,33 +344,53 @@ jsPsych.plugins['source-choice'] = (function(){
       switch(prior_binned){
         case 'lowest':
           if(trial.agreement=='agree'){
-            range = [0, 0.35];
+            range = [0, 0.25];
           } else {
-            range = [0.45, 0.8];
+            range = [0.5, 0.75];
           }
           break;
         case 'lower':
           if(trial.agreement=='agree'){
-            range = [0.2, 0.55];
+            range = [0.25, 0.5];
           } else {
-            range = [0.65, 1];
+            range = [0.75, 1];
           }
           break;
         case 'higher':
           if(trial.agreement=='agree'){
-            range = [0.45, 0.8];
+            range = [0.5, 0.75];
           } else {
-            range = [0, 0.35];
+            range = [0, 0.25];
           }
           break;
         case 'highest':
           if(trial.agreement=='agree'){
-            range = [0.65, 1];
+            range = [0.75, 1];
           } else {
-            range = [0.2, 0.55];
+            range = [0.25, 0.5];
           }
           break;
       }
+      // allow the range to be narrower or wider, e.g. so that experimental trials are less variable than control trials
+      if(trial.soc_info_range=='wide'){
+        range[0]-=0.05;
+        range[1]+=0.05;
+      } else {
+        range[0]+=0.05;
+        range[1]-=0.05;
+      }
+      // in case the above operation takes values outside the range [0, 1], adjust them back into that range
+      var adjustment = 0;
+      if(range[0]<0){
+        adjustment = Math.abs(range[0]);
+      }
+      if(range[1]>1){
+        adjustment = 1 - range[1];
+      }
+      console.log('adjusting', range, 'by', adjustment);
+      range[0] += adjustment;
+      range[1] += adjustment;
+      console.log('adjusted', range);
       return range;
     }
 
@@ -395,6 +431,7 @@ jsPsych.plugins['source-choice'] = (function(){
       var max = range[1];
       var random = [];
       for(var i = 0; i < n; i++){
+        var ran = Math.random();
         random.push(Math.random() * (max - min) + min);
       }
       return random;
@@ -432,13 +469,13 @@ jsPsych.plugins['source-choice'] = (function(){
       var thought;
       var icon;
       var tvs = [];
-      var backgrounds = [];
+      var tv_channels = [];
+      var tvs_indexes = jsPsych.randomization.shuffle(_.range(trial.agents));
       var jaws = [];
       var remotesImg = [];
       var remotes = [];
 
-
-      var agentCount = trial.agents;
+      var agent_count = trial.agents;
       var agentParts = {m: {hair: {}}, f: {hair: {}}};
       var sketchWidth = 900;
       var sketchHeight = 600;
@@ -446,11 +483,36 @@ jsPsych.plugins['source-choice'] = (function(){
       var thoughtSize = 100;
       var topMargin = 40;
       var passes = 4;
-      var displaySize = {x: 141, y: 88};
-      var displayOffset = {x: 10, y: 31};
-      var tvSize = {x: 160, y: 160};
-      var bodyColors = [{r: 255, g: 30, b: 30}, {r: 51, g: 158, b: 51}, {r: 227, g: 80, b: 234},
-          {r: 247, g: 147, b: 35}, {r: 9, g: 202, b: 237}];
+      var displaySize = {x: 113, y: 70};
+      var displayOffset = {x: 9, y: 25};
+      var tvSize = {x: 130, y: 130};
+
+      /****
+      ** Generate agent ids
+      ****/
+
+      // first, pick a gender ratio, weighted to have higher likelihood of being more balanced
+      var number_males;
+      if(trial.number_males){
+        number_males = trial.number_males;
+      } else {
+        number_males = _.sample([0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5]);
+      }
+      var number_females = trial.agents - number_males;
+      // generate IDs for each gender, enough for 2 pannels
+      var male_ids = _.sampleSize(_.range(0,15), number_males);
+      var female_ids = _.sampleSize(_.range(0,15), number_females);
+      var agent_ids = [];
+      male_ids.forEach(function(id){
+          agent_ids.push({gender: 'm', hair: id});
+      });
+      female_ids.forEach(function(id){
+        agent_ids.push({gender: 'f', hair: id});
+      });
+
+      var bodyColors = _.map(_.range(0, agent_count), function(i){
+        return trial.shirt_colors[i];
+      });
       var hairColors = [{r: 236, g: 236, b: 25}, {r: 160, g: 68, b: 11}, {r: 167, g: 113, b: 13},
           {r: 93, g: 51, b: 4}, {r: 39, g: 26, b: 11}];
       var headColors = [{r: 117, g: 60, b: 16}, {r: 220, g: 182, b: 83}, {r: 250, g: 235, b: 173},
@@ -461,7 +523,7 @@ jsPsych.plugins['source-choice'] = (function(){
           {r: 164, g: 153, b: 169}, {r: 116, g: 87, b: 32}];
       bodyColors = _.shuffle(bodyColors);
       hairColors = _.shuffle(hairColors);
-      headColors = _.shuffle(headColors);
+      headColors = _.shuffle(trial.skin_colors);
       legColors = _.shuffle(legColors);
       feetColors = _.shuffle(feetColors);
 
@@ -637,7 +699,7 @@ jsPsych.plugins['source-choice'] = (function(){
 
       function Thought(agentNumber){
         this.x = 70;
-        this.y = agentNumber*((sketchHeight-topMargin)/agentCount);
+        this.y = agentNumber*((sketchHeight-topMargin)/agent_count);
         var start = {x: 10, y: 45};
         var end = {x: 90, y: 45};
         var scaleHeight = 10;
@@ -670,7 +732,7 @@ jsPsych.plugins['source-choice'] = (function(){
 
       function Agent(gender, hairNo, agentNumber){
         this.agentNumber = agentNumber;
-        this.y = agentNumber*((sketchHeight-topMargin)/agentCount) + topMargin;
+        this.y = agentNumber*((sketchHeight-topMargin)/agent_count) + topMargin;
         this.x = 150;
 
         this.body = agentParts[gender].body;
@@ -690,11 +752,11 @@ jsPsych.plugins['source-choice'] = (function(){
             sketch.push();
               sketch.translate(this.x, this.y);
               sketch.push();
-                sketch.tint(bodyColors[this.agentNumber].r, bodyColors[this.agentNumber].g, bodyColors[this.agentNumber].b);
+                sketch.tint(bodyColors[this.agentNumber][0], bodyColors[this.agentNumber][1], bodyColors[this.agentNumber][2]);
                 sketch.image(this.body, 0, 0, agentSize, agentSize);
               sketch.pop();
               sketch.push();
-                sketch.tint(headColors[this.agentNumber].r, headColors[this.agentNumber].g, headColors[this.agentNumber].b);
+                sketch.tint(headColors[this.agentNumber][0], headColors[this.agentNumber][1], headColors[this.agentNumber][2]);
                 sketch.image(this.head, 0, 0, agentSize, agentSize);
               sketch.pop();
               sketch.push();
@@ -726,7 +788,7 @@ jsPsych.plugins['source-choice'] = (function(){
             if(this.agentNumber == supporter.agentNumber){
               trial_data.checks[trial_state] = true;
             } else {
-              trial_data.attn_check_misses += 1
+              trial_data.attn_check_misses += 1;
               alert(check_alert);
 
             }
@@ -748,26 +810,13 @@ jsPsych.plugins['source-choice'] = (function(){
       function Display(agentNumber, channel){
         this.agentNumber = agentNumber;
         this.passes = passes;
-        this.tv = tvs[agentNumber];
+        this.tv = tvs[tvs_indexes[agentNumber]];
+        this.background_color = trial.tv_background[channel];
         this.channel = channel;
         this.on = false;
-        this.stable = false;
-        this.y = agentNumber*((sketchHeight-topMargin)/agentCount) + topMargin;
+        this.y = agentNumber*((sketchHeight-topMargin)/agent_count) + topMargin;
         this.x = 290;
         this.jawOffset = 0;
-
-        // for random channels, set up a random sequence of displays
-        if(trial.choice_type == 'random'){
-          var displaySequence = [];
-          for(var i = 0; i<passes; i++){
-            trial.channel_ids.forEach(function(d,i){
-              displaySequence.push(i);
-            });
-          }
-          this.displaySequence = _.shuffle(displaySequence);
-          this.displayIndex = this.displaySequence.length;
-          this.channelIndex = this.displaySequence[this.displayIndex];
-        }
 
         this.blankScreen = function(){
           sketch.push();
@@ -776,52 +825,20 @@ jsPsych.plugins['source-choice'] = (function(){
           sketch.pop();
         };
 
-        this.jawMove = function(){
-          if(this.jawOffset == 0){
-            this.jawOffset = 1;
-          } else {
-            this.jawOffset = 0;
-          }
-        };
-
-        this.spinChannels = function(){
-          if(this.displayIndex <= 0){
-            this.channelIndex = this.channel;
-            this.stable = true;
-            if(trial_state == 'tvStart' | trial_state == 'tvsOn'){
-              this.jawMove();
-            }
-            if(trial_state=='tvStart'){
-              checkDisplays();
-            }
-          } else {
-            this.displayIndex -= 1;
-            this.channelIndex = this.displaySequence[this.displayIndex];
-          }
-          sketch.image(backgrounds[this.channelIndex], 0, 0, tvSize.x, tvSize.y);
-          // sketch.image(anchors[this.channelIndex], 0, 0, tvSize.x, tvSize.y);
-          sketch.image(jaws[this.channelIndex], 0, this.jawOffset, tvSize.x, tvSize.y);
-        };
-
         this.showLogo = function(){
-          sketch.image(backgrounds[this.channel], 0, 0, tvSize.x, tvSize.y);
-          // sketch.image(anchors[this.channel], 0, 0, tvSize.x, tvSize.y);
-          sketch.image(jaws[this.channel], 0, this.jawOffset, tvSize.x, tvSize.y);
-          this.stable = true;
-          if(trial_state == 'tvStart' | trial_state == 'tvsOn'){
-            this.jawMove();
-          }
-          if(trial_state=='tvStart'){
-            checkDisplays();
-          }
+          sketch.push();
+            sketch.fill(this.background_color[0],this.background_color[1],this.background_color[2]);
+            sketch.translate(displayOffset.x, displayOffset.y);
+            sketch.rect(0, 0, displaySize.x, displaySize.y);
+          sketch.pop();
+          sketch.image(tv_channels[this.channel], 0, 0, tvSize.x, tvSize.y);
         };
 
         this.displayTv = function(){
           if(hide_tv.indexOf(trial_state) == -1){
             sketch.push();
               sketch.translate(this.x, this.y);
-              sketch.scale(0.8);
-
+              sketch.scale(0.75);
               sketch.image(this.tv, 0, 0, tvSize.x, tvSize.y);
               sketch.push();
                 if(this.on){
@@ -832,11 +849,7 @@ jsPsych.plugins['source-choice'] = (function(){
                 // blank screen
                 this.blankScreen();
                 if(this.on){
-                  if(trial.choice_type=='random'){
-                    this.spinChannels();
-                  } else {
-                    this.showLogo();
-                  }
+                  this.showLogo();
                 }
               sketch.pop();
             sketch.pop();
@@ -857,7 +870,7 @@ jsPsych.plugins['source-choice'] = (function(){
 
       function Remote(agentNumber){
         this.index = agentNumber;
-        this.y = agentNumber*((sketchHeight-topMargin)/agentCount) + agentSize + 12;
+        this.y = agentNumber*((sketchHeight-topMargin)/agent_count) + agentSize + 12;
         this.x = 150 + 0.85*agentSize;
         this.on = false;
 
@@ -878,13 +891,14 @@ jsPsych.plugins['source-choice'] = (function(){
         };
 
         this.clicked = function(){
-          if(trial_state == 'tvStart' & trial.choice_type=='intentional'){
+          if(trial_state == 'tvStart'){
             if(sketch.mouseX >= this.x - 35 &
                sketch.mouseX <= this.x + 35 &
                sketch.mouseY >= this.y - 35 &
                sketch.mouseY <= this.y + 35){
                  this.on = true;
                  displays[this.index].on = true;
+                 checkDisplays();
                }
           }
         };
@@ -912,7 +926,7 @@ jsPsych.plugins['source-choice'] = (function(){
         agentParts.m.feet = sketch.loadImage('img/agents/feet.png');
         agentParts.m.legs = sketch.loadImage('img/agents/m_legs.png');
 
-        trial.agent_ids.forEach(function(d,i){
+        agent_ids.forEach(function(d,i){
           var gender = d.gender;
           var hair = d.hair;
           var imgPath = 'img/agents/'+gender+'_hair_'+hair+'.png';
@@ -920,16 +934,16 @@ jsPsych.plugins['source-choice'] = (function(){
           agents[i] = new Agent(gender, hair, i);
         });
 
-        for(var j = 0; j<agentCount; j++){
+        for(var j = 0; j<agent_count; j++){
           tvs[j] = sketch.loadImage('img/tv/tv_'+j+'.png');
           if(trial.choice_type=='intentional'){
             remotesImg[j] = sketch.loadImage('img/remotes/'+j+'.png');
           }
         }
-        trial.channel_ids.forEach(function(d,i){
-          backgrounds[i] = sketch.loadImage('img/tv/channel_'+d+'.png');
-          jaws[i] = sketch.loadImage('img/tv/channel_'+d+'_jaw.png');
-        });
+        for(var k = 0; k < trial.tv_channels.length; k++){
+          var channel_id = trial.tv_channels[k];
+          tv_channels[k] = sketch.loadImage('img/tv/'+channel_id+'.png');
+        }
       };
 
       // set up sketch
@@ -937,10 +951,10 @@ jsPsych.plugins['source-choice'] = (function(){
       sketch.setup = function() {
 
         thought.loadPixels();
-        backgrounds.forEach(function(d,i){
-          backgrounds[i].loadPixels();
-          jaws[i].loadPixels();
+        tv_channels.forEach(function(d,i){
+          tv_channels[i].loadPixels();
         });
+
         agents.forEach(function(d,i){
           tvs[i].loadPixels();
           var k = displayDict[i];

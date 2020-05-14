@@ -10,7 +10,6 @@
         <script language="javascript" src="libraries/jstat.min.js"></script>
         <script language="javascript" src="libraries/helper.js"></script>
         <script language="javascript" src="jspsych/jspsych.js"></script>
-        <!-- make sure you list the jspsych plugins you need below -->
         <script language="javascript" src="jspsych/plugins/jspsych-instructions.js"></script>
         <script language="javascript" src="jspsych/plugins/jspsych-survey-text.js"></script>
         <script language="javascript" src="jspsych/plugins/jspsych-2afc-p5.js"></script>
@@ -20,32 +19,106 @@
         <script language="javascript" src="jspsych/plugins/jspsych-survey-multi-choice.js"></script>
         <script language="javascript" src="jspsych/plugins/jspsych-custom-form.js"></script>
         <script language="javascript" src="jspsych/plugins/jspsych-external-html.js"></script>
-        <!-- the following is the styling provided by jspsych -->
         <link href="jspsych/css/jspsych.css" rel="stylesheet" type="text/css"></link>
-        <!-- the following is where you can tweak the styling -->
         <link href="css/experiment.css" rel="stylesheet" type="text/css"></link>
     </head>
     <body>
+      <img src="img/landscape/scene1.png" width="1" height="1">
+      <img src="img/landscape/scene2.png" width="1" height="1">
+      <img src="img/landscape/scene3.png" width="1" height="1">
     </body>
     <script>
 
-/*
-Set up study variables
-*/
-    var input_data = <%- input_data %>
+/****
 
+Set up study variables
+
+****/
+
+    var input_data = <%- input_data %> // data passed from app.js
     var trial_id = input_data.trial_id
     var cmpltnCd = makeCode(3)+'RtR' + makeCode(5) + '4z4'
     jsPsych.data.addProperties({cmpltnCd: cmpltnCd,
                                 trial_id: trial_id});
+    var data = {};
+    var timeline = [];
+    var experiment_start_time;
+    var save_attempts = 0;
+    var saveTimeout = 3000;
+    var cmpltnCdEnd;
+    var dataUrl = '/data?trial_id=' + trial_id;
 
+/****
+
+PART 1: Consent and English test
+
+*****/
+
+    // consent
+
+    var consent = {
+      type: 'external-html',
+      url: '../views/consent.html',
+      check_fn: function(){
+        experiment_start_time = Date.now();
+        return true;
+      },
+      cont_btn: 'consent'
+    }
+
+    // English instructions
+
+    var english_instructions = {
+      type: 'instructions',
+      pages: ['In this study, you will be doing three main tasks. In the first task, you\'ll be rating sentences according to whether they are good English or not.<br><br>' +
+      'For each sentence, just click "yes" if you think it is good English and "no" if you think it is not.'],
+      show_clickable_nav: true,
+    }
+
+    // English questions
+
+    var english_options = ['no', 'yes'];
+    var questions_eng = [{name: 0, prompt: "Athletes often need to warm up.", options: english_options, horizontal: true, required: true},
+      {name: 1, prompt: "I just saw a moose running down the road!", options: english_options, horizontal: true, required: true},
+      {name: 2, prompt: "John ill felt and went doctor.", options: english_options, horizontal: true, required: true},
+      {name: 3, prompt: "Could you the books put in that boxes?", options: english_options, horizontal: true, required: true},
+      {name: 4, prompt: "I am forget do my homeworks.", options: english_options, horizontal: true, required: true},
+      {name: 5, prompt: "She think English is more easier to learn.", options: english_options, horizontal: true, required: true},
+      {name: 6, prompt: "Tommorow will be thatier than today.", options: english_options, horizontal: true, required: true},
+      {name: 7, prompt: "The building is very murnley.", options: english_options, horizontal: true, required: true},
+      {name: 8, prompt: "Where is the pen that I gave it to you yesterday?", options: english_options, horizontal: true, required: true},
+      {name: 9, prompt: "He was pulled over by the police for driving 120 miles per hour.", options: english_options, horizontal: true, required: true},
+    ]
+    questions_eng_shuffled = jsPsych.randomization.repeat(questions_eng, 1);
+
+    // English trial
+
+    var english = {
+      type: 'survey-multi-choice',
+      questions: questions_eng_shuffled,
+      preamble: 'Are the following sentences good English ("yes") or not ("no")?',
+      data: {block: 'english'}
+    };
+
+
+/****
+
+PART 2: 2AFC task
+
+*****/
+
+    //--- SETUP UP CONDITIONS ---
+
+    // condition for the 2AFC task;
     var condition;
     if(Math.random()<0.5){
       condition = 'trust'
     } else {
       condition = 'fashion'
     }
+    jsPsych.data.addProperties({condition: condition});
 
+    // condition-dependent instruction text for 2AFC task;
     var conditional_text = {
       'trust': {
         '2afc_preamble': 'Which group\'s opinions would you trust more?',
@@ -79,49 +152,33 @@ Set up study variables
         }
     }
 
-    var data = {};
-    var timeline = [];
-    var experiment_start_time;
-    var save_attempts = 0;
-    var saveTimeout = 1000;
-    var cmpltnCdEnd;
-    var dataUrl = '/data?trial_id=' + trial_id;
-
-/****
-
-PART 1
-
-*****/
-
-    // specify RGB colors for TV backgrounds
+    //--- SETUP UP TVs ---
+    // colors of TV background
     var tv_backgrounds =  {
-      // 5 contrasts
+      // grouped by the max. number of channels needed for a trial
+      // 5 channels
       5: [[[240, 25, 75], [245, 150, 60], [60, 180, 75], [0, 130, 200], [145, 30, 180]],
       [[215, 0, 30],[255, 225, 25],[210, 245, 60],[70, 240, 240],[245, 70, 245]],
       [[255, 170, 150],[250, 250, 170],[170, 250, 170],[170, 170, 250],[250, 170, 240]]],
-      // 4 contrasts
+      // 4 channels
       4: [[[255, 225, 25],[210, 245, 60],[70, 240, 240],[240, 50, 230]],
       [[245, 130, 48],[60, 180, 75],[0, 130, 200],[145, 30, 180]]],
-      // 3 contrasts
+      // 3 channels
       3: [[[150, 0, 0],[0, 150, 0],[0, 0, 150]]]
     }
     var tv_background_counter = {5: 0, 4: 0, 3: 0};
     var practice_backgrounds = [[255, 170, 150],[170, 250, 170],[170, 170, 250],[250, 170, 240]];
 
-    var attn_checks = {
-      0: {
-        tv_background: [[247, 171, 40], [41, 59, 255]],
-        preamble: 'Paying attention? Please choose the LEFT side.',
-        correct: '0'
-      },
-      1: {
-        tv_background: [[41, 59, 255], [247, 171, 40]],
-        preamble: 'Paying attention? Please choose the RIGHT side.',
-        correct: '1'
-      }
-    }
+    // generate tv channel IDs
+    var tv_factors = {
+      gender: ['male', 'female'],
+      channel: _.range(10)};
+    var tv_channels_all = _.map(jsPsych.randomization.factorial(tv_factors, 1), function(obj){
+      return obj.gender+obj.channel
+    });
 
-    // colors for skin/shirts
+    //--- SETUP UP TOWNSPEOPLE/TOWNS ---
+
     var skin_colors = [
       [255, 229, 200],
       [255, 218, 190],
@@ -134,7 +191,6 @@ PART 1
       [120, 92, 80],
       [90, 69, 60],
     ]
-    // #https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
     var shirt_colors = [
       [230, 25, 75],
       [60, 180, 75],
@@ -159,33 +215,40 @@ PART 1
       [255, 255, 255],
       [0, 0, 0]];
 
-      // town names
-      var town_names = [
-        'Franklin',
-        'Chester',
-        'Greenville',
-        'Springfield',
-        'Fairfield',
-        'Riverside',
-        'Kingston',
-        'Marion',
-        'Georgetown',
-        'Middleton',
-        'Centerville'];
+    // town names
+    var town_names = [
+      'Franklin',
+      'Chester',
+      'Greenville',
+      'Springfield',
+      'Fairfield',
+      'Riverside',
+      'Kingston',
+      'Marion',
+      'Georgetown',
+      'Middleton',
+      'Centerville'];
 
-      var town_names_shuffled = jsPsych.randomization.shuffle(town_names);
-      var chosen_town_names = []; // keep track of which towns visited for part 2;
+    var town_names_shuffled = jsPsych.randomization.shuffle(town_names);
+    var chosen_town_names = []; // keep track of which towns visited for part 2;
+    var landscapes = ['img/landscape/scene1.png','img/landscape/scene2.png','img/landscape/scene3.png'];
+    var landscapes_shuffled = jsPsych.randomization.shuffle(landscapes);
 
-  /*
-  Sources trial data
-  */
-    // generate tv channel IDs
-    var tv_factors = {
-      gender: ['male', 'female'],
-      channel: _.range(10)};
-    var tv_channels_all = _.map(jsPsych.randomization.factorial(tv_factors, 1), function(obj){
-      return obj.gender+obj.channel
-    });
+    //--- SETUP UP TRIALS ---
+
+    // define attention check parameters
+    var attn_checks = {
+      0: {
+        tv_background: [[247, 171, 40], [41, 59, 255]],
+        preamble: 'Paying attention? Please choose the LEFT side.',
+        correct: '0'
+      },
+      1: {
+        tv_background: [[41, 59, 255], [247, 171, 40]],
+        preamble: 'Paying attention? Please choose the RIGHT side.',
+        correct: '1'
+      }
+    }
 
     // contrasts for each trial, grouped by difference in number of channels
     var contrasts = {
@@ -194,7 +257,7 @@ PART 1
       4: [[5, 1]]
     };
 
-    // Set batch order (so contrasts can be presented in increasing difficulty)
+    // Set batch order (so contrasts can be presented in decreasing difficulty)
     var batch_order = [2, 3, 4];
 
     // Set up trial timeline in line with above batch order
@@ -238,52 +301,7 @@ PART 1
     })
 
 
-  /*
-  Define trials
-  */
-    // consent
-
-    var consent = {
-      type: 'external-html',
-      url: '../views/consent.html',
-      check_fn: function(){
-        experiment_start_time = Date.now();
-        return true;
-      },
-      cont_btn: 'consent'
-    }
-
-    // english instructions
-
-    var english_instructions = {
-      type: 'instructions',
-      pages: ['In this study, you will be doing three main tasks. In the first task, you\'ll be rating sentences according to whether they are good English or not.<br><br>' +
-      'For each sentence, just click "yes" if you think it is good English and "no" if you think it is not.'],
-      show_clickable_nav: true,
-    }
-
-    var english_options = ['no', 'yes'];
-    var questions_eng = [{name: 0, prompt: "Athletes often need to warm up.", options: english_options, horizontal: true, required: true},
-      {name: 1, prompt: "I just saw a moose running down the road!", options: english_options, horizontal: true, required: true},
-      {name: 2, prompt: "John ill felt and went doctor.", options: english_options, horizontal: true, required: true},
-      {name: 3, prompt: "Could you the books put in that boxes?", options: english_options, horizontal: true, required: true},
-      {name: 4, prompt: "I am forget do my homeworks.", options: english_options, horizontal: true, required: true},
-      {name: 5, prompt: "She think English is more easier to learn.", options: english_options, horizontal: true, required: true},
-      {name: 6, prompt: "Tommorow will be thatier than today.", options: english_options, horizontal: true, required: true},
-      {name: 7, prompt: "The building is very murnley.", options: english_options, horizontal: true, required: true},
-      {name: 8, prompt: "Where is the pen that I gave it to you yesterday?", options: english_options, horizontal: true, required: true},
-      {name: 9, prompt: "He was pulled over by the police for driving 120 miles per hour.", options: english_options, horizontal: true, required: true},
-    ]
-    questions_eng_shuffled = jsPsych.randomization.repeat(questions_eng, 1);
-
-    var english = {
-      type: 'survey-multi-choice',
-      questions: questions_eng_shuffled,
-      preamble: 'Are the following sentences good English ("yes") or not ("no")?',
-      data: {block: 'english'}
-    };
-
-    // sources instructions
+    //--- DEFINE JSPSYCH TRIALS ---
 
     var sources_instructions = {
       type: 'instructions',
@@ -291,7 +309,7 @@ PART 1
       show_clickable_nav: true
     }
 
-    // sources practice trial
+    // 2AFC practice trial
     var sources_practice = {
       type: '2afc-p5',
       contrasts: [4, 3],
@@ -313,7 +331,7 @@ PART 1
       show_clickable_nav: true
     }
 
-    // main trials
+    // main 2AFC trials
 
     var sources_trial = {
       type: '2afc-p5',
@@ -323,7 +341,7 @@ PART 1
       timeline: contrasts_timeline,
     }
 
-    // feedback
+    // 2AFC followup questions
 
     var importance_labels = ['Not at all important',
                              'Slightly important',
@@ -355,27 +373,35 @@ PART 1
 
 /****
 
-PART 2
+PART 3: Belief-updating tasks
 
 *****/
 
-  // set up condition
+  //--- SETUP UP TRIAL CONDITIONS ---
 
-  var social_info_condition;
-  var conditional_instructions;
   var social_info_condition = 'intentional';
-  var conditional_instructions = "Click on each person's <b>remote control</b>, and they will turn on their most trusted local news station.";
+  var trial_order = jsPsych.randomization.shuffle(_.range(3));
+  // randomize which of the two experimental trials gets low vs high diversity (non-experimental trial gets medium diversity, regardless)
+  var mayor_diversity;
+  if(Math.random()<0.5){
+    mayor_diversity = ['low', 'medium', 'high']
+  } else {
+    mayor_diversity = ['high', 'medium', 'low']
+  }
+  // randomize diversity of (non-experimental) ethics trials
+  var ethics_diversity = jsPsych.randomization.shuffle(['low', 'medium', 'high'])
+
+
+  //--- SETUP UP INSTRUCTIONS/PRACTICE TRIALS ---
+
+  var tv_instructions = "Click on each person's <b>remote control</b>, and they will turn on their most trusted local news station.";
 
   var estimation_instructions1 = {
     type: 'instructions',
     pages: ['For the next task, you will make some decisions.<br><br>'+
       'The first main decision you will make is whether you think something is <b>morally ok</b>.<br><br>'+
       'We are only interested in what you think <b>generally</b>, '+
-      'so don\'t worry about thinking up special cases where maybe a rule could be broken. '+
-      'For instance, you might think it\'s generally bad to kill people, '+
-      'regardless of whether it might be ok in an unlikely situation where you could travel back in time to kill Hitler.<br><br>',
-      'We are interested in whether it\'s morally ok for <b>people in general</b>, not in whether <b>you</b> do it yourself. '+
-      'For instance, even if you don\'t drink alcohol, you might still think it\'s morally ok for other people to do so, in which case you\'d rate this as acceptable.<br><br>'+
+      'so don\'t worry about thinking up special or unusual cases where maybe a rule could be broken.<br><br>',
       'For each decision, you\'ll also rate how confident you are in your answer. For instance, you might think something is probably morally ok, but be quite unsure about it.',
       'Every time you have to make a <b>moral</b> judgment, we will indicate it using these scales:<br><img src="img/icons/moral.png" style="width:200px"></img>'
     ],
@@ -394,8 +420,8 @@ PART 2
     type: 'source-choice-training',
     rating_type: 'morality',
     cutoffs: {
-      initial: {upper: 0.2, message: "You should think that genocide is morally bad."},
-      confidence: {lower: 0.8, message: "You should be quite sure that genocide is morally bad."},
+      initial: {upper: 0.2, message: "You should think that genocide is morally bad. Are you reading carefully?"},
+      confidence: {lower: 0.8, message: "You should be very sure that genocide is morally bad. Are you reading carefully?"},
     },
     main_instructions: 'Another example, how acceptable do you think <b>genocide</b> is? Mouse over the scale, and click when you\'ve made your decision.',
     secondary_instructions: 'How confident are you about your decision?',
@@ -428,8 +454,8 @@ PART 2
     type: 'source-choice-training',
     rating_type: 'likelihood',
     cutoffs: {
-      initial: {upper: 0.2, message: "You should think that it's very unlikely that Ronald McDonald will be the next president."},
-      confidence: {lower: 0.8, message: "You should be quite sure that Ronald McDonald is unlikely to be president."},
+      initial: {upper: 0.2, message: "You should think that it's very unlikely that Ronald McDonald will be the next president. Are you reading carefully?"},
+      confidence: {lower: 0.8, message: "You should be very sure that Ronald McDonald is unlikely to be president. Are you reading carefully?"},
     },
     main_instructions: 'Another example, how likely do you think it is that Ronald McDonald will be elected president of the USA? Mouse over the scale, and click when you\'ve made your decision.',
     secondary_instructions: 'How confident are you about your decision?',
@@ -440,10 +466,9 @@ PART 2
     type: 'instructions',
     pages: ['<img src="img/soc_info.png" style="height:400px; float: left"></img>'+
     'Remember the townspeople we visited earlier? '+
-    'We are going to revisit some of those towns to learn more about the townspeople and their beliefs.<br><br>'+
-    '<b>Note:</b> these are not the exact same people you chose earlier. We have chosen some groups of townspeople for you.<br><br>'+
+    'We are going to revisit three of those towns to learn more about the townspeople and their beliefs.<br><br>'+
     'After you have given your opinion about a moral matter or an election outcome, '+
-    'we are going to show you the townspeople\'s beliefs, using the same judgment scale that you used<br><br>.'+
+    'we are going to show you the townspeople\'s beliefs, using the same judgment scale that you used.<br><br>'+
     'For example, the person with the highest estimate is the guy at the top with the orange shirt, '+
     'and the one with the lowest estimate is the one in the middle with the red shirt and moustache.',
     'You can assume that each sample of people is typical of the area. '+
@@ -453,9 +478,7 @@ PART 2
     show_clickable_nav: true
   }
 
-  // set up agents/tv backgrounds
-
-  var trial_order = jsPsych.randomization.shuffle(_.range(3));
+  //--- SETUP UP TVS ---
 
   // specify RGB colors for TV backgrounds (one set for each town)
   var tv_backgrounds_beliefs =  {
@@ -470,15 +493,24 @@ PART 2
     channels_beliefs[town_id].push(d)
   })
 
-  var landscapes = ['img/landscape/scene1.png','img/landscape/scene2.png','img/landscape/scene3.png'];
-  var landscapes_shuffled = jsPsych.randomization.shuffle(landscapes);
+  //--- SETUP AGENTS ---
 
-  // set up scenarios
+  // set the male/female ration and skin colors for the two experimental trials so that these are not a confound;
+  var expt_males;
+  if(Math.random()<0.5){
+    expt_males = 2;
+  } else {
+    expt_males = 3;
+  }
+  var expt_skin = jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5);
 
+  //--- SETUP UP SCENARIOS ---
+
+  // the first and third of these scenarios are the experimental trials
   var mayor_instructions_left = {
     scenario: "Bob Smith is one of two candidates running for mayor of "+chosen_town_names[0]+". His platform involves increasing the town's education budget, building more bicycle paths, and instituting equal pay.",
     priorEstimate: 'How likely do you think Bob Smith is to win? Rate your belief on the scale below (click scale to confirm).',
-    tvStart: "In "+chosen_town_names[0]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvStart: "In "+chosen_town_names[0]+", there has been a lot of discussion about the election on TV. " + tv_instructions,
     tvsOn: "The people of "+chosen_town_names[0]+" have each decided how likely they think Bob Smith is to win. Click 'next' to see their beliefs about his chances.",
     socInfoCheck: 'Click on the <b>person</b> that thinks he has the highest chance.',
     posteriorEstimate: "Have a look at people's opinions. What do you think Bob Smith's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
@@ -487,7 +519,7 @@ PART 2
   var mayor_instructions_centrist = {
     scenario: "Tod Brown is one of two candidates running for mayor of "+chosen_town_names[1]+". His platform involves increasing jobs by improving roads and building houses.",
     priorEstimate: 'How likely do you think Tod Brown is to win? Rate your belief on the scale below (click scale to confirm).',
-    tvStart: "In "+chosen_town_names[1]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvStart: "In "+chosen_town_names[1]+", there has been a lot of discussion about the election on TV. " + tv_instructions,
     tvsOn: "The people of "+chosen_town_names[1]+" have each decided how likely they think Tod Brown is to win. Click 'next' to see their beliefs about his chances.",
     socInfoCheck: 'Click on the <b>person</b> that thinks he has the highest chance.',
     posteriorEstimate: "Have a look at people's opinions. What do you think Tod Brown's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
@@ -496,73 +528,78 @@ PART 2
   var mayor_instructions_right = {
     scenario: "Linda Johnson is one of two candidates running for mayor of "+chosen_town_names[2]+". Her platform involves reducing property taxes, hiring more police officers, and clearing a local slum.",
     priorEstimate: 'How likely do you think Linda Jones is to win? Rate your belief on the scale below (click scale to confirm).',
-    tvStart: "In "+chosen_town_names[2]+", there has been a lot of discussion about the election on TV. " + conditional_instructions,
+    tvStart: "In "+chosen_town_names[2]+", there has been a lot of discussion about the election on TV. " + tv_instructions,
     tvsOn: "The people of "+chosen_town_names[2]+" have each decided how likely they think Linda Jones is to win. Click 'next' to see their beliefs about her chances.",
     socInfoCheck: 'Click on the <b>person</b> that thinks she has the highest chance.',
     posteriorEstimate: "Have a look at people's opinions. What do you think Linda Jones's chances of winning are? Rate the likelihood on the scale below (click scale to confirm)."
   }
 
-  // ensure that the same
-
+  // as with the above scenarios variables, the first and third of these trials are the experimental trials
   var mayor_settings = [
     {instructions: mayor_instructions_left,
       agreement: 'disagree',
-      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      number_males: expt_males,
+      skin_colors: expt_skin,
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[0]],
       tv_channels: channels_beliefs[trial_order[0]],
-      town_name: chosen_town_names[trial_order[0]],
-      data: {trial_no: 3}},
+      town_name: chosen_town_names[0],
+      soc_info_range: 'narrow',
+      diversity: mayor_diversity[0],
+      data: {trial_no: 3, trial_order: trial_order[0], question_type: 'mayor'}},
     {instructions: mayor_instructions_centrist,
       agreement: 'agree',
       skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[1]],
       tv_channels: channels_beliefs[trial_order[1]],
-      town_name: chosen_town_names[trial_order[1]],
-      data: {trial_no: 4}},
+      town_name: chosen_town_names[1],
+      diversity: mayor_diversity[1],
+      data: {trial_no: 4, trial_order: trial_order[1], question_type: 'mayor'}},
     {instructions: mayor_instructions_right,
       agreement: 'disagree',
-      skin_colors: jsPsych.randomization.sampleWithoutReplacement(skin_colors, 5),
+      number_males: expt_males,
+      skin_colors: expt_skin,
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[2]],
       tv_channels: channels_beliefs[trial_order[2]],
-      town_name: chosen_town_names[trial_order[2]],
-      data: {trial_no: 5}}
+      town_name: chosen_town_names[2],
+      soc_info_range: 'narrow',
+      diversity: mayor_diversity[2],
+      data: {trial_no: 5, trial_order: trial_order[2], question_type: 'mayor'}}
   ]
 
-  // moral dillema
+  // ethics dilemmas
 
   var moral_instructions_weed = {
-    scenario: "The people of Greenville have been thinking about whether cannabis should be decriminalized.",
+    scenario: "The people of "+chosen_town_names[0]+" have been thinking about whether cannabis should be decriminalized.",
     priorEstimate: 'In general, how do you view <b>decriminalization of cannabis</b>? Rate the acceptability on the scale below (click scale to confirm).',
-    tvStart: "In Greenville, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
-    tvsOn: "The people of Greenville have each decided how they feel about recreational cannabis use. Click 'next' to see their beliefs about this issue.",
+    tvStart: "In "+chosen_town_names[0]+", there has been a lot of discussion about this issue on TV recently. " + tv_instructions,
+    tvsOn: "The people of "+chosen_town_names[0]+" have each decided how they feel about recreational cannabis use. Click 'next' to see their beliefs about this issue.",
     socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
     posteriorEstimate: "Have a look at people's opinions. How acceptable do you think decriminalization of cannabis use is? Rate acceptability on the scale below (click scale to confirm)."
   }
 
   var moral_instructions_guns = {
-    scenario: "The people of Kingston have been thinking about whether gun licences should require tougher background checks.",
+    scenario: "The people of "+chosen_town_names[1]+" have been thinking about whether gun licences should require tougher background checks.",
     priorEstimate: 'In general, how do you view <b>tougher background checks on gun licences</b>? Rate the acceptability on the scale below (click scale to confirm).',
-    tvStart: "In Kingston, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
-    tvsOn: "The people of Kingston have each decided how they feel about tougher background checks on gun licences. Click 'next' to see their beliefs about this issue.",
+    tvStart: "In "+chosen_town_names[1]+", there has been a lot of discussion about this issue on TV recently. " + tv_instructions,
+    tvsOn: "The people of "+chosen_town_names[1]+" have each decided how they feel about tougher background checks on gun licences. Click 'next' to see their beliefs about this issue.",
     socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
     posteriorEstimate: "Have a look at people's opinions. How acceptable do you think tougher background checks on gun licences is? Rate the acceptability on the scale below (click scale to confirm)."
   }
 
   var moral_instructions_immigration = {
-    scenario: "The people of Fairfield have been thinking about whether immigration to the USA should be reduced.",
+    scenario: "The people of "+chosen_town_names[2]+" have been thinking about whether immigration to the USA should be reduced.",
     priorEstimate: 'In general, how do you view <b>stricter immigration policies</b>? Rate the acceptability on the scale below (click scale to confirm).',
-    tvStart: "In Fairfield, there has been a lot of discussion about this issue on TV recently. " + conditional_instructions,
-    tvsOn: "The people of Fairfield have each decided how they feel about stricker immigration policies. Click 'next' to see their beliefs about this issue.",
+    tvStart: "In "+chosen_town_names[2]+", there has been a lot of discussion about this issue on TV recently. " + tv_instructions,
+    tvsOn: "The people of "+chosen_town_names[2]+" have each decided how they feel about stricker immigration policies. Click 'next' to see their beliefs about this issue.",
     socInfoCheck: 'Click on the <b>person</b> that views this most favorably.',
     posteriorEstimate: "Have a look at people's opinions. How acceptable do you think stricter immigration policies are? Rate the acceptability on the scale below (click scale to confirm)."
   }
 
   var moral_trials_instructions = jsPsych.randomization.shuffle([moral_instructions_weed, moral_instructions_guns, moral_instructions_immigration]);
-  var moral_agreements = jsPsych.randomization.shuffle(['agree', 'agree', 'disagree'])
-  var moral_diversity = jsPsych.randomization.shuffle(['low', 'medium', 'high'])
+  var moral_agreements = jsPsych.randomization.shuffle(['agree', 'agree', 'disagree']);
 
   var moral_settings = [
     {instructions: moral_instructions_weed,
@@ -572,8 +609,9 @@ PART 2
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[0]],
       tv_channels: channels_beliefs[trial_order[0]],
-      town_name: chosen_town_names[trial_order[0]],
-      data: {trial_no: 0}},
+      town_name: chosen_town_names[0],
+      diversity: ethics_diversity[0],
+      data: {trial_no: 0, trial_order: trial_order[0], question_type: 'moral'}},
     {instructions: moral_instructions_guns,
       labels: ['Tougher checks\nbad', 'Tougher checks\ngood'],
       agreement: moral_agreements[1],
@@ -581,8 +619,9 @@ PART 2
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[1]],
       tv_channels: channels_beliefs[trial_order[1]],
-      town_name: chosen_town_names[trial_order[1]],
-      data: {trial_no: 1}},
+      town_name: chosen_town_names[1],
+      diversity: ethics_diversity[1],
+      data: {trial_no: 1, trial_order: trial_order[0], question_type: 'moral'}},
     {instructions: moral_instructions_immigration,
       agreement: moral_agreements[2],
       labels: ['Stricter policies\nbad', 'Stricter policies\ngood'],
@@ -590,11 +629,17 @@ PART 2
       shirt_colors: jsPsych.randomization.sampleWithoutReplacement(shirt_colors, 5),
       tv_background: tv_backgrounds_beliefs[trial_order[2]],
       tv_channels: channels_beliefs[trial_order[2]],
-      town_name: chosen_town_names[trial_order[2]],
-      data: {trial_no: 2}}
+      town_name: chosen_town_names[2],
+      diversity: ethics_diversity[2],
+      data: {trial_no: 2, trial_order: trial_order[0], question_type: 'moral'}}
   ]
 
-    // bio
+
+/******
+
+Part 4: demographics question & feedback
+
+******/
 
     var demographics = {
           type: 'custom-form',
@@ -624,40 +669,50 @@ PART 2
             options: ['Some high school','High school diploma','2-year degree or diploma','Bachelors degree or equivalent','Masters degree or equivalent','Doctorate or equivalent','Prefer not to say'],
             values: [0, 1, 2, 3, 4, 5, 'NA'],
             group: 2},
-            {type: 'slider',
+            {type: 'select',
             id: 'ideology',
             prompt: 'How do you identify, politically?',
-            labels: ['Very liberal', 'Very conservative'],
-            group: 2},
+            options: ['Very liberal', 'Quite liberal', 'Slightly liberal', 'Moderate', 'Slightly conservative', 'Quite conservative', 'Very conservative'],
+            values: [0, 1, 2, 3, 4, 5, 6],
+            group: 3},
             {type: 'checkbox',
             id: 'ideology-optout',
             optout_for: 'ideology',
             columns: 1,
-            options: ['Does not apply to my political views', 'Prefer not to say'],
+            options: ['These descriptions not apply to my political views', 'Prefer not to say'],
             values: ['NA', 'None'],
-            group: 2}
+            group: 3}
               ]
             };
 
-    // fill timeline
+      var comments = {
+        type: 'survey-text',
+        questions: [{name: 'comment', prompt: 'Any questions for us? Leave blank if none.', placeholder: '', rows: 4, columns: 80}]
+      }
 
-    // timeline.push(consent);
-    // timeline.push(english_instructions);
-    // timeline.push(english);
-    // timeline.push(sources_instructions);
-    // timeline.push(sources_practice);
-    // timeline.push(sources_instructions2);
-    // timeline.push(sources_trial);
-    // timeline.push(feedback_likert);
-    // timeline.push(estimation_instructions1)
-    // timeline.push(estimation_practice1)
-    // timeline.push(estimation_practice2)
-    //
-    // timeline.push(estimation_instructions2)
-    // timeline.push(estimation_practice3)
-    // timeline.push(estimation_practice4)
-    //
-    // timeline.push(final_instructions)
+/******
+
+Populate timeline
+
+******/
+
+    timeline.push(consent);
+    timeline.push(english_instructions);
+    timeline.push(english);
+    timeline.push(sources_instructions);
+    timeline.push(sources_practice);
+    timeline.push(sources_instructions2);
+    timeline.push(sources_trial);
+    timeline.push(feedback_likert);
+    timeline.push(estimation_instructions1);
+    timeline.push(estimation_practice1);
+    timeline.push(estimation_practice2);
+
+    timeline.push(estimation_instructions2);
+    timeline.push(estimation_practice3);
+    timeline.push(estimation_practice4);
+    timeline.push(final_instructions);
+
     var ordinals = {1: 'First', 2: 'Second', 3: 'Finally'};
 
     trial_order.forEach(function(d, i){
@@ -665,7 +720,7 @@ PART 2
       var ordinal = ordinals[i+1];
       var intro = {
         type: 'instructions',
-        pages: [ordinal + ', we visit the town of '+chosen_town_names[trial_order[d]]+'.<br><br><img src="'+landscapes_shuffled[d]+'"></img>'],
+        pages: [ordinal + ', we visit the town of '+chosen_town_names[d]+'.<br><br><img src="'+landscapes_shuffled[d]+'"></img>'],
         show_clickable_nav: true,
       }
 
@@ -686,12 +741,20 @@ PART 2
         rating_type: 'likelihood',
       };
 
-      // timeline.push(intro)
-      // timeline.push(moral)
+      timeline.push(intro)
+      timeline.push(moral)
       timeline.push(mayor)
 
     })
     timeline.push(demographics);
+    timeline.push(comments);
+
+
+/******
+
+Initialize experiment
+
+******/
 
     jsPsych.init({
         default_iti: 500,
@@ -754,7 +817,6 @@ PART 2
       } else {
         window.location.href = "/finish?token="+cmpltnCd;
       }
-
     }
 
     function makeCode(len){

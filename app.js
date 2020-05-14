@@ -25,7 +25,7 @@ INSTANTIATE THE APP
 - process.env.PORT will retrieve the relevant port # from Heroku if deployed,
   otherwise use port 5000 locally, which you can visit by entering 'localhost:5000' in a browser IF the app is running
 */
-const study_name = 'test';
+const study_name = 'phase1';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -35,7 +35,7 @@ DATABASE SETUP
 - process.env.MONGODB_URI will retrieve the relevant connection info from Heroku when deployed,
   otherwise it will look in a local hidden file .env for a key called MONGODB_URI
 */
-// db.connect(process.env.MONGODB_URI);
+db.connect(process.env.MONGODB_URI);
 
 
 /*
