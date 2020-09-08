@@ -110,12 +110,12 @@ app.post('/data', (req, res, next) => {
   const data = req.body;
   const trial_id = req.query.trial_id || 'none';
   console.log(trial_id, 'Preparing to save trial data...');
-  responses.save({
-    trial_id: trial_id,
-    study_name: study_name,
-    trial_data: data,
-  })
-  .then(res.status(200).end());
+  // responses.save({
+  //   trial_id: trial_id,
+  //   study_name: study_name,
+  //   trial_data: data,
+  // })
+  // res.status(200).end());
 });
 
 /*
